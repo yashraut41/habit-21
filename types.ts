@@ -12,7 +12,13 @@ export interface Goal {
 export interface GoalLog {
   goalId: string;
   date: string; // ISO Date String YYYY-MM-DD
-  status: 'completed'; 
+  status: 'completed';
+}
+
+export interface WeightLog {
+  id: string;
+  date: string; // ISO Date String YYYY-MM-DD
+  weight: number; // in KG
 }
 
 export type CalendarDayStatus = 'completed' | 'missed' | 'today-pending' | 'future' | 'neutral';

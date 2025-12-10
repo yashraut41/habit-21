@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Flame } from 'lucide-react';
-import { Goal, GoalLog } from './types';
+import { Goal, GoalLog, WeightLog } from './types';
 import { getLocalDateString, calculateStreaks } from './utils/dateUtils';
 import { Modal } from './components/Modal';
+import { WeightTracker } from './components/WeightTracker/WeightTracker';
 
 // --- Components defined internally for simplicity of the single-file output structure requested in prompt nuances, 
 // though typically would be separate. I will separate major ones if they get too large, but for this scale, 
@@ -16,6 +17,7 @@ import { EmptyState } from './components/EmptyState';
 const App: React.FC = () => {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [logs, setLogs] = useState<GoalLog[]>([]);
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
 
@@ -23,9 +25,11 @@ const App: React.FC = () => {
   useEffect(() => {
     const storedGoals = localStorage.getItem('chains_goals');
     const storedLogs = localStorage.getItem('chains_logs');
+    const storedWeights = localStorage.getItem('chains_weight_logs');
 
     let parsedGoals: Goal[] = storedGoals ? JSON.parse(storedGoals) : [];
     const parsedLogs: GoalLog[] = storedLogs ? JSON.parse(storedLogs) : [];
+    const parsedWeights: WeightLog[] = storedWeights ? JSON.parse(storedWeights) : [];
 
     // STRICT STREAK RESET LOGIC
     // We process goals immediately upon load to ensure streaks are accurate relative to "now"
@@ -41,6 +45,7 @@ const App: React.FC = () => {
 
     setGoals(parsedGoals);
     setLogs(parsedLogs);
+    setWeightLogs(parsedWeights);
 
     // Save the potentially reset goals back immediately
     localStorage.setItem('chains_goals', JSON.stringify(parsedGoals));
@@ -52,7 +57,10 @@ const App: React.FC = () => {
       localStorage.setItem('chains_goals', JSON.stringify(goals));
       localStorage.setItem('chains_logs', JSON.stringify(logs));
     }
-  }, [goals, logs]);
+    if (weightLogs.length > 0) {
+      localStorage.setItem('chains_weight_logs', JSON.stringify(weightLogs));
+    }
+  }, [goals, logs, weightLogs]);
 
 
 
@@ -108,6 +116,23 @@ const App: React.FC = () => {
     }));
   };
 
+  const handleAddWeight = (weight: number, date: string) => {
+    const newLog: WeightLog = {
+      id: crypto.randomUUID(),
+      date,
+      weight
+    };
+
+    // Check if log already exists for this date, if so update it
+    setWeightLogs(prev => {
+      const exists = prev.find(l => l.date === date);
+      if (exists) {
+        return prev.map(l => l.date === date ? { ...l, weight } : l);
+      }
+      return [...prev, newLog];
+    });
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 pb-20">
       {/* Header */}
@@ -133,6 +158,8 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        <WeightTracker logs={weightLogs} onAddLog={handleAddWeight} />
+
         {goals.length === 0 ? (
           <EmptyState onAdd={() => setIsAddModalOpen(true)} />
         ) : (
