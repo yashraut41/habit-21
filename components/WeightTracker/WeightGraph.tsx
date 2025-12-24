@@ -6,39 +6,74 @@ interface WeightGraphProps {
     daysToShow?: number;
 }
 
-export const WeightGraph: React.FC<WeightGraphProps> = ({ logs, daysToShow = 7 }) => {
+// Cubic Bezier smoothing helper
+const smoothing = 0.2;
+const line = (pointA: number[], pointB: number[]) => {
+    const lengthX = pointB[0] - pointA[0];
+    const lengthY = pointB[1] - pointA[1];
+    return {
+        length: Math.sqrt(Math.pow(lengthX, 2) + Math.pow(lengthY, 2)),
+        angle: Math.atan2(lengthY, lengthX)
+    };
+};
+
+const controlPoint = (current: number[], previous: number[], next: number[], reverse?: boolean) => {
+    const p = previous || current;
+    const n = next || current;
+    const o = line(p, n);
+    const angle = o.angle + (reverse ? Math.PI : 0);
+    const length = o.length * smoothing;
+    const x = current[0] + Math.cos(angle) * length;
+    const y = current[1] + Math.sin(angle) * length;
+    return [x, y];
+};
+
+const bezierCommand = (point: number[], i: number, a: number[][]) => {
+    const [cpsX, cpsY] = controlPoint(a[i - 1], a[i - 2], point);
+    const [cpeX, cpeY] = controlPoint(point, a[i - 1], a[i + 1], true);
+    return `C ${cpsX},${cpsY} ${cpeX},${cpeY} ${point[0]},${point[1]}`;
+};
+
+const svgPath = (points: number[][], command: (point: number[], i: number, a: number[][]) => string) => {
+    if (points.length === 0) return '';
+    const d = points.reduce((acc, point, i, a) => i === 0
+        ? `M ${point[0]},${point[1]}`
+        : `${acc} ${command(point, i, a)}`
+        , '');
+    return d;
+};
+
+
+export const WeightGraph: React.FC<WeightGraphProps> = ({ logs }) => {
     // 1. Process Data
     const data = useMemo(() => {
-        // Sort logs by date
         const sorted = [...logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        // Take only relevant recent logs if needed, but for the graph we usually want to show the trend of what's *in* the last X days.
-        // Actually, purely taking the last N logs might be confusing if they are far apart. 
-        // Let's filter logs that are within the last `daysToShow` days from Today.
 
-        // However, if the user has sparse data, an empty graph is ugly.
-        // Let's just show the last N chronologically sorted logs if they exist, OR the last N days range.
-        // User asked "show progress too for last 7 days".
-        // Let's strictly plot the data points that fall within the last 14 days to give a bit more context than just 7.
-
+        // Show last 14 days or enough to make a line
         const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - daysToShow);
+        cutoff.setDate(cutoff.getDate() - 14); // Extended slightly to show more trend
         const cutoffStr = cutoff.toISOString().split('T')[0];
 
-        return sorted.filter(l => l.date >= cutoffStr);
-    }, [logs, daysToShow]);
+        const filtered = sorted.filter(l => l.date >= cutoffStr);
+
+        // If we have less than 2 points, we can't draw a line, but we might want to show dots.
+        return filtered;
+    }, [logs]);
 
     if (data.length < 2) {
         return (
-            <div className="h-40 flex items-center justify-center text-slate-500 bg-slate-800/20 rounded-xl border border-dashed border-slate-700">
-                <p className="text-sm">Not enough data for graph</p>
+            <div className="h-40 flex flex-col items-center justify-center text-slate-500 bg-slate-800/20 rounded-xl border border-dashed border-slate-700">
+                <p className="text-sm font-medium">Not enough data</p>
+                <p className="text-xs mt-1">Log at least 2 days to see the trend</p>
             </div>
         );
     }
 
     // 2. Calculate Scales
-    const width = 600;
-    const height = 200;
-    const padding = 20;
+    const width = 800;
+    const height = 250;
+    const paddingX = 40;
+    const paddingY = 40;
 
     const weights = data.map(d => d.weight);
     const minWeight = Math.min(...weights) - 0.5;
@@ -50,53 +85,63 @@ export const WeightGraph: React.FC<WeightGraphProps> = ({ logs, daysToShow = 7 }
     const maxDate = Math.max(...dates);
     const dateRange = maxDate - minDate || 1;
 
-    // Coordinate mappers
     const getX = (dateStr: string) => {
         const t = new Date(dateStr).getTime();
-        return padding + ((t - minDate) / dateRange) * (width - padding * 2);
+        return paddingX + ((t - minDate) / dateRange) * (width - paddingX * 2);
     };
 
     const getY = (w: number) => {
-        return height - padding - ((w - minWeight) / weightRange) * (height - padding * 2);
+        return height - paddingY - ((w - minWeight) / weightRange) * (height - paddingY * 2);
     };
 
-    // 3. Build Path
-    const points = data.map(d => `${getX(d.date)},${getY(d.weight)}`).join(' ');
+    // 3. Build Smooth Path
+    const points = data.map(d => [getX(d.date), getY(d.weight)]);
+    const linePath = svgPath(points, bezierCommand);
+
+    // Close the area path for gradient
     const areaPath = `
-    M ${getX(data[0].date)},${height} 
-    L ${points.split(' ').join(' L ')} 
-    L ${getX(data[data.length - 1].date)},${height} 
+    ${linePath}
+    L ${points[points.length - 1][0]},${height}
+    L ${points[0][0]},${height}
     Z
   `;
 
     return (
-        <div className="w-full overflow-hidden rounded-xl bg-slate-800/40 p-4 border border-slate-700/50">
-            <div className="mb-2 flex justify-between items-end px-2">
-                <span className="text-xs text-slate-500 font-medium tracking-wider uppercase">Weight Trend</span>
-            </div>
-
-            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto drop-shadow-lg">
-                {/* Gradient Definition */}
+        <div className="w-full">
+            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto drop-shadow-lg filter">
+                {/* Gradient */}
                 <defs>
                     <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#10b981" stopOpacity="0.2" />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                     </linearGradient>
+                    {/* Shadow Filter */}
+                    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                        <feMerge>
+                            <feMergeNode in="coloredBlur" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                    </filter>
                 </defs>
 
-                {/* Grid Lines (Horizontal) */}
-                {[0, 0.5, 1].map(t => {
-                    const y = padding + t * (height - padding * 2);
+                {/* Dashed Grid Lines */}
+                {[0, 0.33, 0.66, 1].map(t => {
+                    const y = height - paddingY - (t * (height - paddingY * 2));
+                    // Don't draw if out of bounds
+                    if (y < 0 || y > height) return null;
+
                     return (
                         <line
                             key={t}
-                            x1={padding}
+                            x1={paddingX}
                             y1={y}
-                            x2={width - padding}
+                            x2={width - paddingX}
                             y2={y}
                             stroke="#334155"
                             strokeWidth="1"
-                            strokeDasharray="4"
+                            strokeDasharray="4 6"
+                            strokeOpacity="0.5"
                         />
                     );
                 })}
@@ -104,50 +149,45 @@ export const WeightGraph: React.FC<WeightGraphProps> = ({ logs, daysToShow = 7 }
                 {/* Area Fill */}
                 <path d={areaPath} fill="url(#chartGradient)" />
 
-                {/* Main Line */}
+                {/* The Smooth Line */}
                 <path
-                    d={`M ${points.replace(/ /g, ' L ')}`}
+                    d={linePath}
                     fill="none"
                     stroke="#10b981"
                     strokeWidth="3"
                     strokeLinecap="round"
-                    strokeLinejoin="round"
                 />
 
-                {/* Data Points */}
-                {data.map((d) => (
-                    <g key={d.id}>
-                        <circle
-                            cx={getX(d.date)}
-                            cy={getY(d.weight)}
-                            r="4"
-                            fill="#0f172a"
-                            stroke="#10b981"
-                            strokeWidth="2"
-                        />
-                        {/* Value Label (only for first, last, and min/max if needed, here just all for now but shifted) */}
-                        <text
-                            x={getX(d.date)}
-                            y={getY(d.weight) - 10}
-                            textAnchor="middle"
-                            fill="white"
-                            fontSize="12"
-                            fontWeight="bold"
-                        >
-                            {d.weight}
-                        </text>
-                        {/* Date Label (simplified) */}
-                        <text
-                            x={getX(d.date)}
-                            y={height - 2}
-                            textAnchor="middle"
-                            fill="#94a3b8"
-                            fontSize="10"
-                        >
-                            {new Date(d.date).getDate()}
-                        </text>
-                    </g>
-                ))}
+                {/* Data Points - Active indicator for last point? Or all points? Design shows dots. */}
+                {data.map((d, i) => {
+                    const isLast = i === data.length - 1;
+                    const cx = getX(d.date);
+                    const cy = getY(d.weight);
+
+                    return (
+                        <g key={d.id}>
+                            {/* Pulsing effect for last item */}
+                            {isLast && (
+                                <circle
+                                    cx={cx}
+                                    cy={cy}
+                                    r="8"
+                                    fill="#10b981"
+                                    className="animate-pulse"
+                                    opacity="0.5"
+                                />
+                            )}
+                            <circle
+                                cx={cx}
+                                cy={cy}
+                                r={isLast ? 5 : 3.5}
+                                fill="#0f172a"
+                                stroke="#10b981"
+                                strokeWidth={isLast ? 3 : 2}
+                            />
+                        </g>
+                    );
+                })}
             </svg>
         </div>
     );

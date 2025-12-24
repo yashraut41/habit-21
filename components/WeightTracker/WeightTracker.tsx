@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, X, CalendarCheck, CalendarX } from 'lucide-react';
+import { Plus, X, Settings } from 'lucide-react';
 import { WeightLog } from '../../types';
 import { getLocalDateString } from '../../utils/dateUtils';
 import { Modal } from '../Modal';
@@ -13,7 +13,7 @@ interface WeightTrackerProps {
 
 export const WeightTracker: React.FC<WeightTrackerProps> = ({ logs, onAddLog }) => {
     const [isPickerOpen, setIsPickerOpen] = useState(false);
-    const [pickerWeight, setPickerWeight] = useState(70.0);
+    const [pickerWeight, setPickerWeight] = useState(75.5); // Default start
 
     const todayStr = getLocalDateString(new Date());
 
@@ -38,18 +38,19 @@ export const WeightTracker: React.FC<WeightTrackerProps> = ({ logs, onAddLog }) 
         setIsPickerOpen(false);
     };
 
-    // Generate last 7 days history
-    const historyDays = useMemo(() => {
+    // Generate last 7 days history pill status
+    // Design shows dots under the weight. 
+    // Let's implement that "Dots" look (Green for success, Gray for empty).
+    const historyPills = useMemo(() => {
         const days = [];
+        // Show last 7 days
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
             const dStr = getLocalDateString(d);
-
             const log = logs.find(l => l.date === dStr);
             days.push({
                 date: dStr,
-                dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
                 hasLog: !!log,
                 isToday: dStr === todayStr
             });
@@ -58,62 +59,68 @@ export const WeightTracker: React.FC<WeightTrackerProps> = ({ logs, onAddLog }) 
     }, [logs, todayStr]);
 
     return (
-        <div className="bg-slate-800/60 rounded-2xl p-6 border border-emerald-500/20 shadow-xl backdrop-blur-sm">
-            <div className="flex justify-between items-start mb-6">
-                <div>
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        Weight Tracker
-                        {latestLog && (
-                            <span className="text-emerald-400 text-2xl ml-2 font-mono">
-                                {latestLog.weight} <span className="text-sm text-emerald-500/70">KG</span>
-                            </span>
-                        )}
-                    </h2>
-                    <p className="text-slate-400 text-sm mt-1">
-                        {latestLog ? `Last updated: ${latestLog.date === todayStr ? 'Today' : latestLog.date}` : 'Start tracking your journey'}
-                    </p>
-                </div>
+        <div className="bg-[#151c2c] rounded-3xl p-8 border border-slate-800 shadow-2xl relative overflow-hidden group">
 
+            {/* Header */}
+            <div className="flex justify-between items-start z-10 relative">
+                <h2 className="text-xl font-bold text-white tracking-wide">Weight Tracking</h2>
                 <button
                     onClick={handleOpenPicker}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-lg shadow-emerald-900/20"
+                    className="p-2 rounded-full text-slate-500 hover:text-white hover:bg-slate-700 transition-all"
                 >
-                    <Plus className="w-4 h-4" />
-                    {latestLog?.date === todayStr ? 'Update' : 'Log Weight'}
+                    <Settings className="w-5 h-5" />
                 </button>
             </div>
 
-            {/* Graph */}
-            <div className="mb-8">
-                <WeightGraph logs={logs} />
+            {/* Hero Stat - Centered */}
+            <div className="flex flex-col items-center mt-6 mb-8 z-10 relative">
+                <div className="flex items-baseline gap-1" >
+                    <span className="text-6xl font-extrabold text-[#10b981] tracking-tight">
+                        {latestLog ? latestLog.weight : '--.-'}
+                    </span>
+                    <span className="text-xl font-medium text-slate-400">kg</span>
+                </div>
+
+                {/* History Dots (Pills) */}
+                <div className="flex gap-2 mt-4">
+                    {historyPills.map((day) => (
+                        <div
+                            key={day.date}
+                            className={`
+                                w-3 h-3 rounded-full transition-all duration-300
+                                ${day.hasLog ? 'bg-[#10b981] shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-700'}
+                                ${day.isToday && !day.hasLog ? 'animate-pulse bg-slate-600' : ''}
+                            `}
+                            title={day.date}
+                        />
+                    ))}
+                </div>
             </div>
 
-            {/* 7-Day History Pills */}
-            <div className="flex justify-between items-center gap-2">
-                {historyDays.map((day) => (
-                    <div key={day.date} className="flex flex-col items-center gap-2 flex-1">
-                        <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${day.hasLog
-                                    ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
-                                    : 'bg-slate-800 border-slate-700 text-slate-600'
-                                } ${day.isToday ? 'ring-2 ring-emerald-500/30' : ''}`}
-                        >
-                            {day.hasLog ? <CalendarCheck className="w-5 h-5" /> : <CalendarX className="w-4 h-4" />}
-                        </div>
-                        <span className={`text-xs font-medium ${day.isToday ? 'text-white' : 'text-slate-500'}`}>
-                            {day.dayName}
-                        </span>
-                    </div>
-                ))}
+            {/* Graph */}
+            <div className="relative -mx-4">
+                {/* Subtle grid lines extension? */}
+                <WeightGraph logs={logs} />
+
+                {/* Add Button Floating Action (Design shows a button at bottom right of graph? Or just check in?)
+            The User's design has a "+" button at the bottom right of the graph area. 
+        */}
+                <button
+                    onClick={handleOpenPicker}
+                    className="absolute bottom-6 right-8 w-12 h-12 bg-[#10b981] hover:bg-[#059669] text-slate-900 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all"
+                    title="Log Weight"
+                >
+                    <Plus className="w-6 h-6" />
+                </button>
             </div>
 
             {/* Picker Modal */}
             <Modal isOpen={isPickerOpen} onClose={() => setIsPickerOpen(false)}>
-                <div className="p-6">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-bold text-white">Log Today's Weight</h3>
-                        <button onClick={() => setIsPickerOpen(false)} className="text-slate-400 hover:text-white">
-                            <X className="w-6 h-6" />
+                <div className="p-8 bg-[#151c2c] border border-slate-700 rounded-3xl">
+                    <div className="flex justify-between items-center mb-8">
+                        <h3 className="text-2xl font-bold text-white">Log Weight</h3>
+                        <button onClick={() => setIsPickerOpen(false)} className="text-slate-400 hover:text-white bg-slate-800 p-2 rounded-full">
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
 
@@ -122,20 +129,12 @@ export const WeightTracker: React.FC<WeightTrackerProps> = ({ logs, onAddLog }) 
                         onWeightChange={setPickerWeight}
                     />
 
-                    <div className="mt-8 flex gap-3">
-                        <button
-                            onClick={() => setIsPickerOpen(false)}
-                            className="flex-1 py-3 px-4 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-900/20 transition-all hover:scale-[1.02]"
-                        >
-                            Save Weight
-                        </button>
-                    </div>
+                    <button
+                        onClick={handleSave}
+                        className="w-full mt-8 py-4 px-6 rounded-xl bg-[#10b981] hover:bg-[#059669] text-slate-900 font-bold text-lg shadow-lg shadow-emerald-900/20 transition-all active:scale-[0.98]"
+                    >
+                        Update Weight
+                    </button>
                 </div>
             </Modal>
         </div>
