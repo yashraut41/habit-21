@@ -1,7 +1,8 @@
-import React from 'react';
-import { Flame, Target } from 'lucide-react';
+import React, { useState } from 'react';
+import { Flame, Target, ChevronDown, ChevronUp } from 'lucide-react';
 import { Goal, GoalLog } from '../types';
-import { getLocalDateString, getLast7Days } from '../utils/dateUtils';
+import { getLocalDateString, getHistory } from '../utils/dateUtils';
+import { AccomplishmentCalendar } from './AccomplishmentCalendar';
 
 interface GoalCardProps {
   goal: Goal;
@@ -11,9 +12,11 @@ interface GoalCardProps {
 }
 
 export const GoalCard: React.FC<GoalCardProps> = ({ goal, logs, onCheckIn }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const todayStr = getLocalDateString(new Date());
   const isCheckedInToday = goal.lastCheckInDate === todayStr;
-  const history = getLast7Days(goal, logs);
+  const history7 = getHistory(goal, logs, 7);
+  const history30 = getHistory(goal, logs, 30);
 
   // Calculate progress percentage
   const progressPercent = Math.min((goal.currentStreak / goal.targetDays) * 100, 100);
@@ -58,16 +61,32 @@ export const GoalCard: React.FC<GoalCardProps> = ({ goal, logs, onCheckIn }) => 
       </div>
 
       {/* Visual Calendar Row (Moved up/integrated) - Actually in design it's dots. Let's keep the dots idea. */}
-      <div className="flex gap-1 mb-6">
-        {history.map((day, i) => (
-          <div
-            key={i}
-            className={`w-3 h-3 rounded-full ${day.status === 'completed' ? 'bg-[#10b981]' :
-              day.status === 'missed' ? 'bg-slate-700' : 'bg-slate-700' // Simplified for visual parity with design which just shows green dots or gray
-              }`}
-          />
-        ))}
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex gap-1">
+          {history7.map((day, i) => (
+            <div
+              key={i}
+              className={`w-3 h-3 rounded-full ${day.status === 'completed' ? 'bg-[#10b981]' :
+                day.status === 'missed' ? 'bg-slate-700' : 'bg-slate-700' // Simplified for visual parity with design which just shows green dots or gray
+                }`}
+            />
+          ))}
+        </div>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1 hover:text-slate-300 transition-colors"
+        >
+          {isExpanded ? 'Hide History' : 'View 30 Days'}
+          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </button>
       </div>
+
+      {/* Expanded Section: 30-Day Accomplishment Calendar */}
+      {isExpanded && (
+        <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+          <AccomplishmentCalendar history={history30} />
+        </div>
+      )}
 
       {/* Action Area */}
       <div className="flex justify-between items-center border-t border-slate-700/50 pt-4">
@@ -91,34 +110,7 @@ export const GoalCard: React.FC<GoalCardProps> = ({ goal, logs, onCheckIn }) => 
         )}
       </div>
 
-      {/* Visual Calendar Strip */}
-      <div className="bg-slate-900/50 rounded-lg p-3">
-        <div className="flex justify-between items-center text-xs text-slate-500 mb-2">
-          <span>Last 7 Days</span>
-          <span>Today</span>
-        </div>
-        <div className="flex justify-between gap-1 h-8">
-          {history.map((day) => (
-            <div
-              key={day.date}
-              className={`
-                        flex-1 rounded-sm relative group cursor-default
-                        ${day.status === 'completed' ? 'bg-emerald-500' : ''}
-                        ${day.status === 'missed' ? 'bg-rose-500/30 border border-rose-500/50' : ''}
-                        ${day.status === 'today-pending' ? 'bg-slate-700 animate-pulse border border-slate-600' : ''}
-                        ${day.status === 'neutral' ? 'bg-slate-800' : ''}
-                    `}
-              title={`${day.date}: ${day.status}`}
-            >
-              {day.status === 'missed' && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-rose-500 font-bold leading-none">×</span>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Removed the old bottom status strip as we now have the toggleable 30-day view */}
     </div>
   );
 };

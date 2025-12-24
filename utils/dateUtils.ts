@@ -44,14 +44,15 @@ export const calculateStreaks = (goal: Goal, todayStr: string): { currentStreak:
   return { currentStreak: goal.currentStreak, needsReset: false };
 };
 
-export const getLast7Days = (goal: Goal, logs: GoalLog[]): DayData[] => {
+export const getHistory = (goal: Goal, logs: GoalLog[], daysCount: number): DayData[] => {
   const days: DayData[] = [];
   const today = new Date();
 
 
-  // We want to show 7 days: 6 past days + today
-  for (let i = 6; i >= 0; i--) {
+  // We want to show daysCount: (daysCount - 1) past days + today
+  for (let i = daysCount - 1; i >= 0; i--) {
     const d = new Date();
+    d.setHours(0, 0, 0, 0); // Normalize to midnight
     d.setDate(today.getDate() - i);
     const dateStr = getLocalDateString(d);
 
