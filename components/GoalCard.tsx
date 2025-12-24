@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Flame, Target, ChevronDown, ChevronUp } from 'lucide-react';
 import { Goal, GoalLog } from '../types';
-import { getLocalDateString, getHistory } from '../utils/dateUtils';
+import { getLocalDateString, getHistory, getMonthHistory } from '../utils/dateUtils';
 import { AccomplishmentCalendar } from './AccomplishmentCalendar';
 
 interface GoalCardProps {
@@ -13,10 +13,15 @@ interface GoalCardProps {
 
 export const GoalCard: React.FC<GoalCardProps> = ({ goal, logs, onCheckIn }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const todayStr = getLocalDateString(new Date());
+  const today = new Date();
+  const todayStr = getLocalDateString(today);
   const isCheckedInToday = goal.lastCheckInDate === todayStr;
+
   const history7 = getHistory(goal, logs, 7);
-  const history30 = getHistory(goal, logs, 30);
+  const historyMonth = getMonthHistory(goal, logs, today.getFullYear(), today.getMonth());
+
+  const monthName = today.toLocaleString('default', { month: 'long' });
+  const year = today.getFullYear();
 
   // Calculate progress percentage
   const progressPercent = Math.min((goal.currentStreak / goal.targetDays) * 100, 100);
@@ -76,15 +81,19 @@ export const GoalCard: React.FC<GoalCardProps> = ({ goal, logs, onCheckIn }) => 
           onClick={() => setIsExpanded(!isExpanded)}
           className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1 hover:text-slate-300 transition-colors"
         >
-          {isExpanded ? 'Hide History' : 'View 30 Days'}
+          {isExpanded ? 'Hide Calendar' : 'View Month'}
           {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
       </div>
 
-      {/* Expanded Section: 30-Day Accomplishment Calendar */}
+      {/* Expanded Section: Accomplishment Calendar */}
       {isExpanded && (
         <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
-          <AccomplishmentCalendar history={history30} />
+          <AccomplishmentCalendar
+            history={historyMonth}
+            monthName={monthName}
+            year={year}
+          />
         </div>
       )}
 

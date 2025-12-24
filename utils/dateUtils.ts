@@ -79,3 +79,36 @@ export const getHistory = (goal: Goal, logs: GoalLog[], daysCount: number): DayD
   }
   return days;
 };
+
+export const getMonthHistory = (goal: Goal, logs: GoalLog[], year: number, month: number): DayData[] => {
+  const days: DayData[] = [];
+  const totalDays = new Date(year, month + 1, 0).getDate();
+  const todayStr = getLocalDateString(new Date());
+
+  for (let i = 1; i <= totalDays; i++) {
+    const d = new Date(year, month, i);
+    const dateStr = getLocalDateString(d);
+    const isToday = dateStr === todayStr;
+    const hasLog = logs.some(l => l.date === dateStr);
+
+    let status: DayData['status'] = 'neutral';
+
+    if (hasLog) {
+      status = 'completed';
+    } else if (isToday) {
+      status = 'today-pending';
+    } else {
+      // Future dates
+      if (dateStr > todayStr) {
+        status = 'future';
+      } else if (goal.createdAt > dateStr) {
+        status = 'neutral';
+      } else {
+        status = 'missed';
+      }
+    }
+
+    days.push({ date: dateStr, status, isToday });
+  }
+  return days;
+};
